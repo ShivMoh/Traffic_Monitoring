@@ -2,7 +2,7 @@ from ultralytics import YOLO
 import cv2 as cv
 import mss
 import numpy as np
-from datetime import datetime
+from datetime import date, datetime, time
 
 
 bounding_box = {'top':0, 'left':0, 'width':1920, 'height':1080} 
@@ -15,16 +15,32 @@ max_count = 0
 
 boundary_1 = [(330, 380), (330, 450)]
 boundary_2 = [(1030, 380), (1030, 450)]
+first_boundary_pass = []
 
-time_store = {
-   "time_stamp_b1" : "",
-    "time_stamp_b2" : "",
-    "passed_both_boundaries" : False
-}
-
+# id, t1, t2, passed_both_boundaries
 time_stores = []
 passed_check_point_1 = []
 passed_check_point_2 = []
+
+def check_both_over(box):
+    
+    is_y1_within_bounds_b1 = False
+    is_x1_passed_b1 = False
+     
+    if box[1] > float( boundary_1[0][1]):
+       is_y1_within_bounds_b1 = True
+
+    if box[0] > float(boundary_1[0][0]):
+       is_x1_passed_b1 = True
+
+
+    is_x2_passed_b2 = False
+
+    if box[0] > float(boundary_2[0][0]):
+        is_x2_passed_b2 = True
+
+    return is_y1_within_bounds_b1 and is_x1_passed_b1 and is_x2_passed_b2 
+
 def check_if_pass_first_boundary(box, id):
    
    if id in passed_check_point_1:
@@ -43,13 +59,13 @@ def check_if_pass_first_boundary(box, id):
    if box[0] > float(boundary_1[0][0]):
        is_x1_passed = True
    
-   print("BOX:", box)
-   print("ID", id)
-   print("y1", is_y1_within_bounds)
-   print("y2", is_y2_within_bounds)
-   print("x1", is_x1_passed)
+#   print("BOX:", box)
+#   print("ID", id)
+#   print("y1", is_y1_within_bounds)
+#   print("y2", is_y2_within_bounds)
+#   print("x1", is_x1_passed)
 
-   print("-------------------")
+#   print("-------------------")
    
    return_bool = is_y1_within_bounds and is_y2_within_bounds and is_x1_passed
    
@@ -59,6 +75,7 @@ def check_if_pass_first_boundary(box, id):
       data_point = [id, current_time, "", False]
       time_stores.append(data_point)
       passed_check_point_1.append(id)
+      first_boundary_pass.append(id)
 
    return return_bool
 
@@ -90,6 +107,20 @@ def check_if_pass_second_boundary(box, id):
 
     return return_bool
 
+def get_where_passed_both_boundaries(time_stores):
+    ret_list = [] 
+    for list in time_stores:
+        if list[3]:
+           ret_list.append(list) 
+
+    return ret_list
+
+def passed_both_boundaries(id):
+    for data in time_stores:
+        if data[0] == id:
+            return data
+    return [False, False, False, False]
+
 while ret:
     # ret, frame = cap.read()
     ret = True
@@ -110,8 +141,37 @@ while ret:
                     print("NOT EQUAL")          
 
                 for index, box in enumerate(boxes):
-                    check_if_pass_first_boundary(box, ides[index])
-                    check_if_pass_second_boundary(box, ides[index])
+                    if ides[index] not in first_boundary_pass:
+                        both_over = check_both_over(box) 
+
+                        if not both_over:
+                            print("Not Both Over")
+                            check_if_pass_first_boundary(box, ides[index])
+
+                    if ides[index] in first_boundary_pass:
+                        check_if_pass_second_boundary(box, ides[index])
+                    
+                    data = passed_both_boundaries(ides[index]) 
+
+                    if data[3] is True:
+
+                        x_1 = int(box[0] - box[2] / 2)
+                        x_2 = int(x_1 + box[2])
+
+                        y_1 = int(box[1] - box[3] / 2)
+                        y_2 = int(y_1 + box[3])
+
+                        distance = 28 / 1000
+                        time_taken = datetime.strptime(data[2], "%H:%M:%S.%f") - datetime.strptime(data[1], "%H:%M:%S.%f")
+                        time_taken = float(datetime.strftime(datetime.strptime(str(time_taken),"%H:%M:%S.%f"), "%S.%f"))
+
+                        print("time taken, id", time_taken, id)
+                        speed = distance / time_taken * 1/25
+
+                        cv.putText(raw_frame, str(speed), (x_1, y_1), cv.FONT_HERSHEY_COMPLEX, 3, (0, 0, 255))
+                        cv.rectangle(raw_frame, (x_1, y_1), (x_2, y_2), (255, 0, 0), 2)
+
+                    
                 
                 count = max(ids.int().cpu().tolist())
                 max_count = count
@@ -124,9 +184,24 @@ while ret:
         frame_ = cv.resize(frame_, (int(frame_.shape[1] * 0.5), int(frame_.shape[0] * 0.5)), interpolation=cv.INTER_AREA)  
         
 
-        cv.imshow('frame', frame_)
+        cv.imshow('Raw_Frame', raw_frame)
         if cv.waitKey(25) & 0xFF == ord('q'):
             break
 
-print(time_stores)
-print("Final Count", max_count)
+
+new_time_stores = get_where_passed_both_boundaries(time_stores)
+
+for data_point in new_time_stores:
+    first_data_point = data_point
+    distance = 28 / 1000
+    time_taken = datetime.strptime(first_data_point[2], "%H:%M:%S.%f") - datetime.strptime(first_data_point[1], "%H:%M:%S.%f")
+    time_taken = float(datetime.strftime(datetime.strptime(str(time_taken),"%H:%M:%S.%f"), "%S.%f"))
+
+
+    speed = distance / time_taken * 1/25
+    print(distance)
+    print(time_taken)
+    print(speed)
+
+# print ("Filtered List", time_stores)
+# print("Final Count", max_count)
