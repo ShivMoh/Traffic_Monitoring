@@ -43,21 +43,45 @@ border_points = [
 # pt2, pt4, pt6, pt8
 # [(1234, 276), (1836, 467), (235, 670), (391, 287)]
 
-def determine_quadrant(box):
+def determine_if_q1(box):
     return True if box[0] < frame_points[2][0] and box[0] > frame_points[0][0] and box[1] < frame_points[-1][1] else False
 
-def calculate_ratio(map_pt1, map_pt2, frame_pt1, frame_pt2):
-    return (map_pt2 - map_pt1) / (frame_pt2 - frame_pt1)
+def determine_if_q2(box):
+    return True if box[0] < frame_points[2][0] and box[0] > frame_points[0][0] and box[1] > frame_points[-1][1] else False
 
-def distance_away_map_coords(box, ratio, reference_point):
+def determine_if_q3(box):
+    return True if box[0] > frame_points[6][0] and box[0] < frame_points[0][0] and box[1] > frame_points[-1][1] else False
+
+def determine_if_q4(box):
+    return True if box[0] > frame_points[6][0] and box[0] < frame_points[0][0] and box[1] < frame_points[-1][1] else False
+
+def calculate_ratios(map_pt1, map_pt2, frame_pt1, frame_pt2):
+    print(map_pt1, map_pt2, frame_pt1, frame_pt2)
+    x = abs(map_pt2[0] - map_pt1[0]) / abs(frame_pt2[0] - frame_pt1[0])
+    y = abs(map_pt2[1] - map_pt1[1]) / abs(frame_pt2[1] - frame_pt1[1])
+
+    return [x, y]
+
+
+def distance_away_map_coords(box, ratio_x, ratio_y, reference_point):
     reference_x = reference_point[0]
     box_x = box[0]
 
-    distance = box_x - reference_x
+    refernce_y = reference_point[1]
+    box_y = box[1]
+    
+    print(box_x, reference_x)
+    distance_x = abs(box_x - reference_x)
+    distance_y = abs(box_y - refernce_y)
 
-    distance_in_map = distance * ratio
+    distance_in_map_x = distance_x * ratio_x
+    distance_in_map_y = distance_y * ratio_y
+    print(distance_x, distance_in_map_x)
+    print(distance_y, distance_in_map_y)
+    return [distance_in_map_x, distance_in_map_y]
 
-    return distance_in_map
+
+
 app = Flask(__name__)
 
 
@@ -99,7 +123,7 @@ cv.setMouseCallback('Frame',draw_circle)
 
 cap = cv.VideoCapture("./sample.mp4")
 
-target_id = 20
+target_id = 24
 relative_positions = []
 
 while True:
@@ -107,6 +131,11 @@ while True:
     # frame = frame[:, :, :3]
 
     ret, frame = cap.read()
+
+    if not ret:
+        print(relative_positions)
+        break
+
     result = model.track(frame, persist=True)
     
     annotated_frame = result[0].plot()
@@ -116,20 +145,79 @@ while True:
             ides = []
             if result[0].boxes.id is not None:
                 ides = result[0].boxes.id.int().cpu().tolist()
+            
+            map_reference_pt1 = []
+            map_reference_pt2 = []
 
+            frame_reference_pt1 = []
+            frame_reference_pt2 = []
+            reference_point = []
             for box, id in zip(boxes, ides):
-                if determine_quadrant(box):
+                
+                if determine_if_q1(box):
+                    print("WE'RE IN Q1")
+                    map_reference_pt1 = map_points[0]
+                    map_reference_pt2 = map_points[2]
+
+                    frame_reference_pt1 = frame_points[0]
+                    frame_reference_pt2 = frame_points[2]
+                    reference_point = frame_points[0]
+
+                if determine_if_q2(box):
+                   print("WE'RE IN Q2")
+                   map_reference_pt1 = map_points[2]
+                   map_reference_pt2 = map_points[4]
+
+                   frame_reference_pt1 = frame_points[2]
+                   frame_reference_pt2 = frame_points[4]
+                   reference_point = frame_points[2]
+                    
+                if determine_if_q3(box):
+                    print("WE'RE IN Q3")
+                    map_reference_pt1 = map_points[4]
+                    map_reference_pt2 = map_points[6]
+
+                    frame_reference_pt1 = frame_points[4]
+                    frame_reference_pt2 = frame_points[6]
+                    reference_point = frame_points[4]
+
+                if determine_if_q4(box):
+                   print("WE'RE IN Q4")
+                   map_reference_pt1 = map_points[6]
+                   map_reference_pt2 = map_points[8]
+
+                   frame_reference_pt1 = frame_points[6]
+                   frame_reference_pt2 = frame_points[8]
+                   reference_point = frame_points[6]
+                    
+                if determine_if_q4(box):
                     if target_id == -1:
                         target_id = id
-                    if id == target_id:
-                        print("We're in Q1")
-                        ratio = calculate_ratio(map_points[0][0], map_points[2][0], frame_points[0][0], frame_points[2][0])
-                        map_distance = distance_away_map_coords(box, ratio, frame_points[0])
-                        
-                        print(map_distance)
-                        cv.putText(annotated_frame, "This one", (int(box[0]), int(box[1])), cv.FONT_HERSHEY_COMPLEX, 2, (0, 0, 255))
-                        relative_positions.append(map_distance)
+                    if id == target_id: 
+                        ratio_x, ratio_y = calculate_ratios(
+                                map_reference_pt1, 
+                                map_reference_pt2, 
+                                frame_reference_pt1, 
+                                frame_reference_pt2
+                        )
 
+                        map_distance = distance_away_map_coords(
+                                box, 
+                                ratio_x, 
+                                ratio_y, 
+                                reference_point
+                        )
+                        
+                        cv.putText(
+                                annotated_frame, 
+                                "This one",
+                                (int(box[0]), int(box[1])), 
+                                cv.FONT_HERSHEY_COMPLEX, 
+                                2, 
+                                (0, 0, 255)
+                        )
+
+                        relative_positions.append(map_distance)
             
     for index, point in enumerate(frame_points):
         cv.putText(annotated_frame, "pt"+str(index), (point[0], point[1]), cv.FONT_HERSHEY_COMPLEX, 2, (0, 0, 255))
