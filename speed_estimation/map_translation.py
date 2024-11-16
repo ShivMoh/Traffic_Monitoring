@@ -123,7 +123,7 @@ cv.setMouseCallback('Frame',draw_circle)
 
 cap = cv.VideoCapture("./sample.mp4")
 
-target_id = 24
+target_id = 20
 relative_positions = []
 
 while True:
@@ -189,8 +189,9 @@ while True:
                    frame_reference_pt1 = frame_points[6]
                    frame_reference_pt2 = frame_points[8]
                    reference_point = frame_points[6]
-                    
-                if determine_if_q4(box):
+                
+                # I don't know why we're only checking q4, which is q4??? who knows, man...what idiot wrote this...
+                if determine_if_q1(box):
                     if target_id == -1:
                         target_id = id
                     if id == target_id: 
