@@ -6,6 +6,8 @@ from ultralytics import YOLO
 from datetime import date, datetime, time
 from re import escape
 from flask import Flask
+import udp_test as udp
+
 
 bounding_box = {'top':0, 'left':0, 'width':1920, 'height':1080} 
 
@@ -121,20 +123,21 @@ annotated_frame = np.zeros((1920, 1080))
 cv.namedWindow('Frame')
 cv.setMouseCallback('Frame',draw_circle)
 
-cap = cv.VideoCapture("./sample.mp4")
+# cap = cv.VideoCapture("./sample.mp4")
 
-target_id = 20
+target_id = -1
 relative_positions = []
 
 while True:
-    # frame = np.array(sct.grab(bounding_box))
-    # frame = frame[:, :, :3]
+    frame = np.array(sct.grab(bounding_box))
+    frame = frame[:, :, :3]
+    
 
-    ret, frame = cap.read()
+    # ret, frame = cap.read()
 
-    if not ret:
-        print(relative_positions)
-        break
+    # if not ret:
+    #    print(relative_positions)
+    #    break
 
     result = model.track(frame, persist=True)
     
@@ -191,8 +194,8 @@ while True:
                    reference_point = frame_points[6]
                 
                 # I don't know why we're only checking q4, which is q4??? who knows, man...what idiot wrote this...
-                if determine_if_q1(box):
-                    if target_id == -1:
+                if True:
+                    if target_id == -1 or id > target_id:
                         target_id = id
                     if id == target_id: 
                         ratio_x, ratio_y = calculate_ratios(
@@ -219,6 +222,8 @@ while True:
                         )
 
                         relative_positions.append(map_distance)
+
+                        udp.send_udp_packet(map_distance)
             
     for index, point in enumerate(frame_points):
         cv.putText(annotated_frame, "pt"+str(index), (point[0], point[1]), cv.FONT_HERSHEY_COMPLEX, 2, (0, 0, 255))
