@@ -1,13 +1,14 @@
+import json
+from typing import List
 import cv2 as cv
-from cv2.gapi import parseSSD
 import numpy as np
 import mss
 from ultralytics import YOLO
-from datetime import date, datetime, time
+from datetime import datetime
 from re import escape
 from flask import Flask
 import udp_test as udp
-
+import time
 
 bounding_box = {'top':0, 'left':0, 'width':1920, 'height':1080} 
 
@@ -27,8 +28,7 @@ map_points = [
 ]
 
 frame_points = [
-(714, 268), (1193, 268), (1654, 333), (1770, 455), (1426, 618), (261, 681), (2, 380), (424, 288), (829, 324)
-
+    (714, 268), (1193, 268), (1654, 333), (1770, 455), (1426, 618), (261, 681), (2, 380), (424, 288), (829, 324)
 ]
 
 # center, (start from to, then clockise onwoard) pt1, pt2, pt3, pt4
@@ -58,12 +58,11 @@ def determine_if_q4(box):
     return True if box[0] > frame_points[6][0] and box[0] < frame_points[0][0] and box[1] < frame_points[-1][1] else False
 
 def calculate_ratios(map_pt1, map_pt2, frame_pt1, frame_pt2):
-    print(map_pt1, map_pt2, frame_pt1, frame_pt2)
+    print("DATA VALUES", map_pt1, map_pt2, frame_pt1, frame_pt2)
     x = abs(map_pt2[0] - map_pt1[0]) / abs(frame_pt2[0] - frame_pt1[0])
     y = abs(map_pt2[1] - map_pt1[1]) / abs(frame_pt2[1] - frame_pt1[1])
 
     return [x, y]
-
 
 def distance_away_map_coords(box, ratio_x, ratio_y, reference_point):
     reference_x = reference_point[0]
@@ -83,9 +82,7 @@ def distance_away_map_coords(box, ratio_x, ratio_y, reference_point):
     return [distance_in_map_x, distance_in_map_y]
 
 
-
 app = Flask(__name__)
-
 
 # frame coords
 """
@@ -118,7 +115,9 @@ def draw_circle(event,x,y,flags,param):
     if event == cv.EVENT_LBUTTONDOWN:
         points.append((x,y))
         cv.circle(annotated_frame, (x,y), 5, (255, 0, 0), -1)
- 
+
+
+
 annotated_frame = np.zeros((1920, 1080)) 
 cv.namedWindow('Frame')
 cv.setMouseCallback('Frame',draw_circle)
@@ -127,6 +126,11 @@ cv.setMouseCallback('Frame',draw_circle)
 
 target_id = -1
 relative_positions = []
+
+number_of_cars : int = 0
+distances : List[float] = []
+quadrants : List[str] = []
+previous_time = time.time()
 
 while True:
     frame = np.array(sct.grab(bounding_box))
@@ -155,6 +159,9 @@ while True:
             frame_reference_pt1 = []
             frame_reference_pt2 = []
             reference_point = []
+            assigned  : bool = False
+            quadrant : str = ""
+
             for box, id in zip(boxes, ides):
                 
                 if determine_if_q1(box):
@@ -165,6 +172,8 @@ while True:
                     frame_reference_pt1 = frame_points[0]
                     frame_reference_pt2 = frame_points[2]
                     reference_point = frame_points[0]
+                    assigned = True
+                    quadrant = "q1"
 
                 if determine_if_q2(box):
                    print("WE'RE IN Q2")
@@ -174,6 +183,8 @@ while True:
                    frame_reference_pt1 = frame_points[2]
                    frame_reference_pt2 = frame_points[4]
                    reference_point = frame_points[2]
+                   assigned = True
+                   quadrant = "q2"
                     
                 if determine_if_q3(box):
                     print("WE'RE IN Q3")
@@ -183,6 +194,8 @@ while True:
                     frame_reference_pt1 = frame_points[4]
                     frame_reference_pt2 = frame_points[6]
                     reference_point = frame_points[4]
+                    assigned = True
+                    quadrant = "q3"
 
                 if determine_if_q4(box):
                    print("WE'RE IN Q4")
@@ -192,39 +205,59 @@ while True:
                    frame_reference_pt1 = frame_points[6]
                    frame_reference_pt2 = frame_points[8]
                    reference_point = frame_points[6]
+                   assigned = True
+                   quadrant = "q4"
                 
-                # I don't know why we're only checking q4, which is q4??? who knows, man...what idiot wrote this...
-                if True:
-                    if target_id == -1 or id > target_id:
-                        target_id = id
-                    if id == target_id: 
-                        ratio_x, ratio_y = calculate_ratios(
-                                map_reference_pt1, 
-                                map_reference_pt2, 
-                                frame_reference_pt1, 
-                                frame_reference_pt2
-                        )
+                if assigned:
+                    ratio_x, ratio_y = calculate_ratios(
+                            map_reference_pt1, 
+                            map_reference_pt2, 
+                            frame_reference_pt1, 
+                            frame_reference_pt2
+                    )
 
-                        map_distance = distance_away_map_coords(
-                                box, 
-                                ratio_x, 
-                                ratio_y, 
-                                reference_point
-                        )
+                    map_distance = distance_away_map_coords(
+                            box, 
+                            ratio_x, 
+                            ratio_y, 
+                            reference_point
+                    )
+                    
+                    cv.putText(
+                            annotated_frame, 
+                            "This one",
+                            (int(box[0]), int(box[1])), 
+                            cv.FONT_HERSHEY_COMPLEX, 
+                            2, 
+                            (0, 0, 255)
+                    )
                         
-                        cv.putText(
-                                annotated_frame, 
-                                "This one",
-                                (int(box[0]), int(box[1])), 
-                                cv.FONT_HERSHEY_COMPLEX, 
-                                2, 
-                                (0, 0, 255)
-                        )
+                    relative_positions.append(map_distance)
+                    quadrants.append(quadrant)
+                    assigned = False 
+                    # just sending the raw distance
 
-                        relative_positions.append(map_distance)
+            # after the for loop completed
+            number_of_cars = len(boxes)
+            distances = relative_positions
+            time = str(datetime.now().time())
+                        
+            dict = {
+                    "number_of_cars": str(number_of_cars),
+                    "positions": distances,
+                    "quadrants" : quadrants,
+                    "time" : time
+            }
 
-                        udp.send_udp_packet(map_distance)
-            
+            relative_positions = []
+            quadrants = []
+
+            try:
+                MESSAGE = json.dumps(dict)
+                udp.send_udp_packet_json_2(MESSAGE)
+            except:
+                print("something went wrong")
+                print(dict)
     for index, point in enumerate(frame_points):
         cv.putText(annotated_frame, "pt"+str(index), (point[0], point[1]), cv.FONT_HERSHEY_COMPLEX, 2, (0, 0, 255))
         cv.circle(annotated_frame, (point[0],point[1]), 10, (255, 0, 0), -1)
