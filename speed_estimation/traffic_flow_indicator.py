@@ -89,6 +89,8 @@ while True:
 
                 if average_speed > 0.0:
                     current_average = (average_speed + current_average) / 2
+                else: 
+                    current_average = average_speed
                     
             previous_boxes = parse_objs(boxes)
             previous_ides = ides
