@@ -13,31 +13,6 @@ bounding_box = {'top':0, 'left':0, 'width':1920, 'height':1080}
 model = YOLO('/home/shivesh/Documents/python/open_cv/computer_vision/traffic/runs/detect/train/weights/best.pt')
 names = model.model.names
 
-boundary_1 = [(330, 380), (330, 450)]
-boundary_2 = [(1030, 380), (1030, 450)]
-horizontal_line = [(0, 300), (1920, 200)]
-vertical_line = [(int(1500), 0), (int(1500), 1080)]
-
-# don't know why but horizontal line works and vertical line does not
-points = horizontal_line
-w = 1920
-h = 1080
-fps = 1/25
-
-speed_region = [(0, 0), (1920, 0), (1920, 1080), (0, 1080)]
-
-speed_obj = solutions.SpeedEstimator(
-    reg_pts=points,
-    names=names,
-    view_img=True,
-)
-
-current_frames = []
-current_ids = []
-
-current_count = 0
-currently_in_frame = 0
-
 # fill empty list with first batch of boxes and ids
 # then second frame check if there are common ids between the previous ids and the current names
 # if yes, calculate the distance travelled and time taken inorder to calculate the speed pixels/second
@@ -96,7 +71,6 @@ previous_boxes = None
 previous_ides = None
 current_average = 0
 
-
 while True:
     raw_frame = np.array(sct.grab(bounding_box))
     
@@ -104,7 +78,6 @@ while True:
     result = model.track(frame, persist=True, show=False)
      
     if result:
-
         if result[0].boxes is not None and result[0].boxes.id is not None:
             boxes = result[0].boxes.xywh.cpu().tolist()
             ides = result[0].boxes.id.int().cpu().tolist()
@@ -115,21 +88,14 @@ while True:
                 average_speed = calculate_average_speed(previous_boxes=previous_boxes, current_boxes=current_boxes, previous_ids=previous_ides, current_ids=ides)
 
                 if average_speed > 0.0:
-                    print("Is this not running?")
                     current_average = (average_speed + current_average) / 2
                     
             previous_boxes = parse_objs(boxes)
             previous_ides = ides
 
+    cv.putText(raw_frame, "Average speed is (pixels/second)" + str(current_average), (50,50), fontFace=cv.FONT_HERSHEY_COMPLEX, fontScale=1, color=(255, 0, 0)); 
 
-            
-        speed_frame = speed_obj.estimate_speed(raw_frame, result)
-        if speed_frame is not None:
-            frame = speed_frame
-
-    cv.putText(frame, "Average speed is (pixels/second)" + str(current_average), (50,50), fontFace=cv.FONT_HERSHEY_COMPLEX, fontScale=1, color=(255, 0, 0)); 
-
-    cv.imshow("Frame", frame)
+    cv.imshow("Speed Indicator Frame", raw_frame)
 
     if cv.waitKey(25) & 0xFF == ord('q'):
        break 
