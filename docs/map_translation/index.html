@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <meta name="turbo-cache-control" content="no-cache" data-turbo-track="reload" data-track-token="3.6.0.792178996094">
+    <meta name="turbo-cache-control" content="no-cache" data-turbo-track="reload" data-track-token="3.6.0.792195227443">
 
     <!-- See retype.com -->
     <meta name="generator" content="Retype 3.6.0">
@@ -11,7 +11,7 @@
     <!-- Primary Meta Tags -->
     <title>Map translation</title>
     <meta name="title" content="Map translation">
-    <meta name="description" content="This is a demo of the map translation:">
+    <meta name="description" content="The map translation module is designed for estimating real world positions of vehicular traffic based on the in frame pixel coordinates of the source...">
 
     <!-- Canonical -->
     <link rel="canonical" href="/map_translation/">
@@ -20,21 +20,26 @@
     <meta property="og:type" content="website">
     <meta property="og:url" content="/map_translation/">
     <meta property="og:title" content="Map translation">
-    <meta property="og:description" content="This is a demo of the map translation:">
+    <meta property="og:description" content="The map translation module is designed for estimating real world positions of vehicular traffic based on the in frame pixel coordinates of the source...">
+    <meta property="og:image" content="/assets/client_architecture.png">
 
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image">
     <meta property="twitter:url" content="/map_translation/">
     <meta property="twitter:title" content="Map translation">
-    <meta property="twitter:description" content="This is a demo of the map translation:">
+    <meta property="twitter:description" content="The map translation module is designed for estimating real world positions of vehicular traffic based on the in frame pixel coordinates of the source...">
+    <meta property="twitter:image" content="/assets/client_architecture.png">
 
     <script data-cfasync="false">(function () { var el = document.documentElement, m = localStorage.getItem("doc_theme"), wm = window.matchMedia; if (m === "dark" || (!m && wm && wm("(prefers-color-scheme: dark)").matches)) { el.classList.add("dark") } else { el.classList.remove("dark") } })();</script>
 
-    <link href="../resources/css/retype.css?v=3.6.0.792178996094" rel="stylesheet">
+    <link href="../resources/css/retype.css?v=3.6.0.792195227443" rel="stylesheet">
 
-    <script data-cfasync="false" src="../resources/js/config.js?v=3.6.0.792178996094" data-turbo-eval="false" defer></script>
+    <script data-cfasync="false" src="../resources/js/config.js?v=3.6.0.792195227443" data-turbo-eval="false" defer></script>
     <script data-cfasync="false" src="../resources/js/retype.js?v=3.6.0" data-turbo-eval="false" defer></script>
-    <script id="lunr-js" data-cfasync="false" src="../resources/js/lunr.js?v=3.6.0.792178996094" data-turbo-eval="false" defer></script>
+    <script id="lunr-js" data-cfasync="false" src="../resources/js/lunr.js?v=3.6.0.792195227443" data-turbo-eval="false" defer></script>
+    <script id="prism-js" data-cfasync="false" src="../resources/js/prism.js?v=3.6.0.792195227443" defer></script>
+    <link href="../resources/css/katex.css?v=3.6.0" rel="stylesheet">
+    <script id="katex-js" data-cfasync="false" src="../resources/js/katex.js?v=3.6.0" defer></script>
 </head>
 <body>
     <div id="docs-app" class="relative text-base antialiased text-gray-700 bg-white font-body dark:bg-dark-850 dark:text-dark-300">
@@ -169,8 +174,76 @@
         <span>Map translation</span>
     </h1>
 </doc-anchor-target>
+<doc-anchor-target id="purpose">
+    <h2>
+        <doc-anchor-trigger class="header-anchor-trigger" to="#purpose">#</doc-anchor-trigger>
+        <span>Purpose</span>
+    </h2>
+</doc-anchor-target>
+<p>The map translation module is designed for estimating real world positions of vehicular traffic based on the in frame pixel coordinates of the source video.</p>
+<doc-anchor-target id="how-it-works">
+    <h2>
+        <doc-anchor-trigger class="header-anchor-trigger" to="#how-it-works">#</doc-anchor-trigger>
+        <span>How it works</span>
+    </h2>
+</doc-anchor-target>
+<p>In order to translate the frame coordinates into  map coordinates, points of references were used.</p>
+<p>In both the frame coordinates and the real world coordinates (lat, long), 8 points of references were taken. These points were marked and used as anchor points to calculate the movement of the vehicles and translate it into estimated real world coordinates.</p>
+<p>As shown in the image above, the coordinates divide the shape into four main quadrants. Depending on the quadrant that the vehicle is in, the sign for the operation to calculate the real world coordinate will change (negative or positive).</p>
+<p>The process overall is straight foward. Suppose the vehicle is currentl in Q1, at location (x_i, y_i). We can use the reference point A, call it (x_a, y_b), and its known translation to lat and lng, call it (lat_a, lat_b), with a following reference point B, to calculate a x and y ratio using the following equation:</p>
+<div class="math"><pre>ratio = map\_point_b - map\_point_a / frame\_point_b - frame\_point_a</pre></div>
+<p>In code, this was expressed as:</p>
+<div class="codeblock-wrapper"><doc-codeblock>
+<pre class="language-python"><code v-pre class="language-python"># code start
+def calculate_ratios(map_pt1, map_pt2, frame_pt1, frame_pt2):
+    x = abs(map_pt2[0] - map_pt1[0]) / abs(frame_pt2[0] - frame_pt1[0])
+    y = abs(map_pt2[1] - map_pt1[1]) / abs(frame_pt2[1] - frame_pt1[1])
+    return [x, y]
+# code end</code></pre>
+</doc-codeblock></div>
+<p>This ratio is then multiplied by the current in frame coordinates to achieve the location in the map. In code this, was done as follows:</p>
+<div class="codeblock-wrapper"><doc-codeblock>
+<pre class="language-python"><code v-pre class="language-python"># code start
+def distance_away_map_coords(box, ratio_x, ratio_y, reference_point):
+    reference_x = reference_point[0]
+    box_x = box[0]
+    refernce_y = reference_point[1]
+    box_y = box[1]
+    distance_x = abs(box_x - reference_x)
+    distance_y = abs(box_y - refernce_y)
+    distance_in_map_x = distance_x * ratio_x
+    distance_in_map_y = distance_y * ratio_y
+
+    return [distance_in_map_x, distance_in_map_y]
+# code end</code></pre>
+</doc-codeblock></div>
+<doc-anchor-target id="code-structure">
+    <h2>
+        <doc-anchor-trigger class="header-anchor-trigger" to="#code-structure">#</doc-anchor-trigger>
+        <span>Code Structure</span>
+    </h2>
+</doc-anchor-target>
+<p>The overall code application is divided into server-client structure. The front end code is written in basic js and leaflet js, following the common js setup structure while python with the socket library is used to send udp packets to the front end. The basic flow of data is show as follows:</p>
+<p><figure class="content-center">
+    <img src="../assets/client_architecture.png" alt="">
+    <figcaption class="caption"></figcaption>
+</figure>
+</p>
+<doc-anchor-target id="demo">
+    <h2>
+        <doc-anchor-trigger class="header-anchor-trigger" to="#demo">#</doc-anchor-trigger>
+        <span>Demo</span>
+    </h2>
+</doc-anchor-target>
 <p>This is a demo of the map translation:</p>
-<iframe src="https://drive.google.com/file/d/1Wf6fEdI4-6mA9-44hnZg58tgm61h1eYG/preview" width="640" height="480" allow="autoplay"></iframe>
+<p>
+<figure>
+    <div class="relative w-full mb-6 overflow-hidden pt-9/16">
+        <iframe class="w-full h-full border-0 absolute inset-0" src="https://drive.google.com/file/d/1Wf6fEdI4-6mA9-44hnZg58tgm61h1eYG/preview" allowfullscreen></iframe>
+    </div>
+</figure>
+</p>
+
                                 
                                 <!-- Required only on API pages -->
                                 <doc-toolbar-member-filter-no-results></doc-toolbar-member-filter-no-results>
@@ -179,16 +252,23 @@
                             
                                 <nav class="flex mt-14">
                                     <div class="w-1/2">
-                                        <a class="px-5 py-4 h-full flex items-center break-normal font-medium text-blue-500 dark:text-blue-400 border border-gray-300 hover:border-gray-400 dark:border-dark-650 dark:hover:border-dark-450 rounded-r rounded-l-lg transition-colors duration-150 relative hover:z-5" href="../">
+                                        <a class="px-5 py-4 h-full flex items-center break-normal font-medium text-blue-500 dark:text-blue-400 border border-gray-300 hover:border-gray-400 dark:border-dark-650 dark:hover:border-dark-450 rounded-l-lg transition-colors duration-150 relative hover:z-5" href="../">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="mr-3" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" overflow="visible"><path d="M19 11H7.41l5.29-5.29a.996.996 0 10-1.41-1.41l-7 7a1 1 0 000 1.42l7 7a1.024 1.024 0 001.42-.01.996.996 0 000-1.41L7.41 13H19c.55 0 1-.45 1-1s-.45-1-1-1z" /><path fill="none" d="M0 0h24v24H0z" /></svg>
                                             <span>
                                                 <span class="block text-xs font-normal text-gray-400 dark:text-dark-400">Previous</span>
-                                                <span class="block mt-1">Index</span>
+                                                <span class="block mt-1">Welcome</span>
                                             </span>
                                         </a>
                                     </div>
                             
                                     <div class="w-1/2">
+                                        <a class="px-5 py-4 -mx-px h-full flex items-center justify-end break-normal font-medium text-blue-500 dark:text-blue-400 border border-gray-300 hover:border-gray-400 dark:border-dark-650 dark:hover:border-dark-450 rounded-r-lg transition-colors duration-150 relative hover:z-5" href="../object_detection/">
+                                            <span>
+                                                <span class="block text-xs font-normal text-right text-gray-400 dark:text-dark-400">Next</span>
+                                                <span class="block mt-1">Object detection</span>
+                                            </span>
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="ml-3" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" overflow="visible"><path d="M19.92 12.38a1 1 0 00-.22-1.09l-7-7a.996.996 0 10-1.41 1.41l5.3 5.3H5c-.55 0-1 .45-1 1s.45 1 1 1h11.59l-5.29 5.29a.996.996 0 000 1.41c.19.2.44.3.7.3s.51-.1.71-.29l7-7c.09-.09.16-.21.21-.33z" /><path fill="none" d="M0 0h24v24H0z" /></svg>
+                                        </a>
                                     </div>
                                 </nav>
                             </footer>
@@ -229,6 +309,6 @@
 
     <div id="docs-overlay-target"></div>
 
-    <script data-cfasync="false">window.__DOCS__ = { "title": "Map translation", level: 1, icon: "file", hasPrism: false, hasMermaid: false, hasMath: false, tocDepth: 23 }</script>
+    <script data-cfasync="false">window.__DOCS__ = { "title": "Map translation", level: 1, icon: "file", hasPrism: true, hasMermaid: false, hasMath: true, tocDepth: 23 }</script>
 </body>
 </html>
