@@ -1,3 +1,0 @@
-This repository contains files relevant to a project intended for use for traffic monitoring for Guyana.
-
-The project seeks to address the high intensity of traffic related congestion and incidents, through the use of computer vision technology. This intends to monitor the flow of traffic and relay data of traffic flow, density, etc through a web application.
