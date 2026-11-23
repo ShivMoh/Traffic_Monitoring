@@ -1,6 +1,7 @@
 MODEL_PATH ='/home/shivesh/Documents/python/open_cv/computer_vision/traffic/runs/detect/train/weights/best.pt' 
 BOUNDING_BOX = {'top':0, 'left':0, 'width':1920, 'height':1080} 
 
+## There are fixed map points I defeined as reference points
 MAP_POINTS = [
 	(6.777571183264428, -58.19654292167958),
 	(6.777443999966449, -58.19648986995),
@@ -13,6 +14,7 @@ MAP_POINTS = [
 	(6.777444, -58.196671)
 ]
 
+## This is where those reference points translate into frame points on the pixel
 FRAME_POINTS = [
     (714, 268), (1193, 268), (1654, 333), (1770, 455), (1426, 618), (261, 681), (2, 380), (424, 288), (829, 324)
 ]
